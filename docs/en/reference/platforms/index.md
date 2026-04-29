@@ -72,7 +72,7 @@
 <td></td>
 </tr>
 <tr>
-<td rowspan="3">Linux</td>
+<td rowspan="4">Linux</td>
 <td><a href="./linux/appimage">AppImage</a></td>
 <td>{{ not_tested }}</td>
 <td>{{ not_tested }}</td>
@@ -95,6 +95,18 @@
 <td>{{ ci_tested }}</td>
 <td>{{ not_tested }}</td>
 <td>{{ ci_tested }}</td>
+</tr>
+<tr>
+<td><a href="./linux/standalone">Standalone</a></td>
+<td>{{ not_tested }}</td>
+<td>{{ not_tested }}</td>
+<td></td>
+<td colspan="2"></td>
+<td colspan="2"></td>
+<td>{{ not_tested }}</td>
+<td>{{ not_tested }}</td>
+<td>{{ not_tested }}</td>
+<td>{{ not_tested }}</td>
 </tr>
 <tr>
 <td><a href="./linux/system"><strong>System package</strong></a></td>

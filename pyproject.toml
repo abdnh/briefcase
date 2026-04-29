@@ -188,6 +188,7 @@ Xcode = "briefcase.platforms.iOS.xcode"
 [project.entry-points."briefcase.formats.linux"]
 appimage = "briefcase.platforms.linux.appimage"
 flatpak = "briefcase.platforms.linux.flatpak"
+standalone = "briefcase.platforms.linux.standalone"
 system = "briefcase.platforms.linux.system"
 # snap = "briefcase.platforms.linux.snap"
 

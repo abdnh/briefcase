@@ -56,7 +56,7 @@ AppImage has a number of significant issues building images for GUI apps. It is 
 
 Briefcase provides an AppImage backend for historical reasons, but we strongly discourage the use of AppImages for distribution. We maintain unit test coverage for the AppImage backend, but we do not build AppImages as part of our release process. We will accept bug reports related to AppImage support, and we will merge PRs that address AppImage support, but the core team does not consider addressing AppImage bugs a priority.
 
-If you need to distribute a Linux app, [System packages][native-system-packages] or [Flatpaks][flatpak] are much more reliable options.
+If you need to distribute a Linux app, [System packages][native-system-packages], [Flatpaks][flatpak], or a [standalone bundle][standalone] are much more reliable options.
 
 ///
 
