@@ -79,6 +79,28 @@ def test_mismatch(create_command, first_app_config, capsys):
     assert first_app_config.python_version_tag == "3.42"
 
 
+def test_embed_python_skips_check(create_command, first_app_config):
+    """If the app embeds Python, no Docker python check is run."""
+    first_app_config.python_version_tag = f"3.{sys.version_info.minor}"
+    first_app_config.target_image = "somevendor:surprising"
+    first_app_config.embed_python = True
+
+    create_command.tools[first_app_config].app_context = DockerAppContext(
+        tools=create_command.tools,
+        app=first_app_config,
+    )
+    create_command.tools[first_app_config].app_context.check_output = MagicMock()
+
+    # Verify python for the app -- no-op because embed_python is True
+    create_command.verify_docker_python(first_app_config)
+
+    # The container Python was never inspected.
+    create_command.tools[first_app_config].app_context.check_output.assert_not_called()
+
+    # The python version tag is unchanged.
+    assert first_app_config.python_version_tag == f"3.{sys.version_info.minor}"
+
+
 def test_target_too_old(create_command, first_app_config):
     """If the target python is too old, an error is raised."""
     first_app_config.python_version_tag = "3"

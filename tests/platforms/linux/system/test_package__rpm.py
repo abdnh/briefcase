@@ -585,6 +585,24 @@ def test_rpm_package_extra_requirements(package_command, first_app_rpm, tmp_path
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Can't build RPMs on Windows")
+@pytest.mark.skipif(sys.platform == "win32", reason="Can't build RPMs on Windows")
+def test_rpm_package_embed_python(package_command, first_app_rpm, tmp_path):
+    """When `embed_python` is set, the python3 runtime dep is dropped from the spec."""
+    bundle_path = tmp_path / "base_path/build/first-app/somevendor/surprising"
+
+    # Mark the app as embedding Python
+    first_app_rpm.embed_python = True
+
+    package_command.package_app(first_app_rpm)
+
+    spec_path = bundle_path / "rpmbuild/SPECS/first-app.spec"
+    assert spec_path.exists()
+
+    contents = spec_path.read_text(encoding="utf-8")
+    # No python3 runtime dep is recorded
+    assert "Requires:       python3" not in contents
+
+
 def test_rpm_package_failure(package_command, first_app_rpm, tmp_path):
     """If packaging doesn't succeed, an error is raised."""
     bundle_path = tmp_path / "base_path/build/first-app/somevendor/surprising"

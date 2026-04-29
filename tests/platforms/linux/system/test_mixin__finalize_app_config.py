@@ -590,6 +590,102 @@ def test_external_docker(create_command, first_app_config):
         create_command.finalize_app_config(first_app_config)
 
 
+def test_embed_python_default(create_command, first_app_config):
+    """If `embed_python` is not set, it defaults to False."""
+    create_command.target_image = None
+    create_command.target_glibc_version = MagicMock(return_value="2.42")
+
+    create_command.tools.platform.freedesktop_os_release = MagicMock(
+        return_value=parse_freedesktop_os_release(
+            "\n".join(
+                [
+                    "ID=somevendor",
+                    "VERSION_CODENAME=surprising",
+                    "ID_LIKE=debian",
+                ]
+            )
+        )
+    )
+
+    finalized_config = create_command.finalize_app_config(first_app_config)
+
+    assert finalized_config.embed_python is False
+
+
+def test_embed_python_explicit(create_command, first_app_config):
+    """If `embed_python` is set on the app config, it's preserved on the finalized
+    config."""
+    create_command.target_image = None
+    create_command.target_glibc_version = MagicMock(return_value="2.42")
+
+    create_command.tools.platform.freedesktop_os_release = MagicMock(
+        return_value=parse_freedesktop_os_release(
+            "\n".join(
+                [
+                    "ID=somevendor",
+                    "VERSION_CODENAME=surprising",
+                    "ID_LIKE=debian",
+                ]
+            )
+        )
+    )
+
+    first_app_config.embed_python = True
+
+    finalized_config = create_command.finalize_app_config(first_app_config)
+
+    assert finalized_config.embed_python is True
+
+
+def test_embed_python_docker_uses_running_python(create_command, first_app_config):
+    """When `embed_python` is set, the Docker path uses the running interpreter's
+    Python version tag rather than the placeholder "3"."""
+    import sys
+
+    create_command.target_image = "somevendor:surprising"
+    create_command.tools.docker = MagicMock()
+    create_command.target_glibc_version = MagicMock(return_value="2.42")
+
+    create_command.tools.docker.check_output.return_value = "\n".join(
+        [
+            "ID=somevendor",
+            "VERSION_CODENAME=surprising",
+            "ID_LIKE=debian",
+        ]
+    )
+
+    first_app_config.embed_python = True
+
+    finalized_config = create_command.finalize_app_config(first_app_config)
+
+    assert finalized_config.embed_python is True
+    # The running interpreter's <major>.<minor> is used directly
+    expected_tag = f"{sys.version_info.major}.{sys.version_info.minor}"
+    assert finalized_config.python_version_tag == expected_tag
+
+
+def test_embed_python_vendor_override(create_command, first_app_config):
+    """`embed_python` can be set per-vendor and overrides the global default."""
+    create_command.target_image = "somevendor:surprising"
+    create_command.tools.docker = MagicMock()
+    create_command.target_glibc_version = MagicMock(return_value="2.42")
+
+    create_command.tools.docker.check_output.return_value = "\n".join(
+        [
+            "ID=somevendor",
+            "VERSION_CODENAME=surprising",
+            "ID_LIKE=debian",
+        ]
+    )
+
+    first_app_config.embed_python = False
+    first_app_config.somevendor = {"embed_python": True}
+
+    finalized_config = create_command.finalize_app_config(first_app_config)
+
+    assert finalized_config.embed_python is True
+
+
 def test_finalized_attrs(create_command, first_app_config):
     """Additional finalized attributes are preserved by Linux finalization."""
     # Build the app without docker

@@ -125,6 +125,30 @@ def test_output_format_template_context(
         "docker_base_image": "somevendor:surprising",
         "vendor_base": "basevendor",
         "use_non_root_user": use_non_root,
+        "embed_python": False,
+    }
+
+
+def test_output_format_template_context_embed_python(create_command, first_app_config):
+    """If `embed_python` is set on the app, it's propagated to the template context."""
+    create_command.tools.host_os = "Linux"
+
+    first_app_config.python_version_tag = "3.X"
+    first_app_config.target_image = "somevendor:surprising"
+    first_app_config.target_vendor = "somevendor"
+    first_app_config.target_codename = "surprising"
+    first_app_config.target_vendor_base = "basevendor"
+    first_app_config.glibc_version = "2.42"
+    first_app_config.embed_python = True
+
+    context = create_command.output_format_template_context(first_app_config)
+
+    assert context == {
+        "format": "surprising",
+        "python_version": "3.X",
+        "docker_base_image": "somevendor:surprising",
+        "vendor_base": "basevendor",
+        "embed_python": True,
     }
 
 
@@ -149,4 +173,5 @@ def test_output_format_template_context_no_docker(create_command, first_app_conf
         "python_version": "3.X",
         "docker_base_image": "somevendor:surprising",
         "vendor_base": "basevendor",
+        "embed_python": False,
     }

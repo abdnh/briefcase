@@ -27,7 +27,7 @@ def test_linux_no_docker(create_command, first_app_config, monkeypatch):
     # Docker is not verified.
     assert not hasattr(create_command.tools, "docker")
     # System python is verified
-    create_command.verify_system_python.assert_called_once_with()
+    create_command.verify_system_python.assert_called_once_with(first_app_config)
 
     # Reset the mock, then invoke verify_app_tools a second time.
     create_command.verify_system_python.reset_mock()

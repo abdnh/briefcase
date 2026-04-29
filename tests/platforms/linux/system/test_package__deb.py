@@ -401,6 +401,24 @@ def test_deb_package_extra_requirements(package_command, first_app_deb, tmp_path
     )
 
 
+def test_deb_package_embed_python(package_command, first_app_deb, tmp_path):
+    """When `embed_python` is set, the libpython runtime dep is dropped."""
+    bundle_path = tmp_path / "base_path/build/first-app/somevendor/surprising"
+
+    # Mark the app as embedding Python
+    first_app_deb.embed_python = True
+
+    # Package the app
+    package_command.package_app(first_app_deb)
+
+    # The control file is written without a libpython dep
+    assert (bundle_path / "first-app-0.0.1/DEBIAN/control").exists()
+    with (bundle_path / "first-app-0.0.1/DEBIAN/control").open(encoding="utf-8") as f:
+        contents = f.read()
+        assert "Depends: libc6 (>=2.99)\n" in contents
+        assert "libpython" not in contents
+
+
 def test_deb_package_failure(package_command, first_app_deb, tmp_path):
     """If a packaging doesn't succeed, an error is raised."""
     bundle_path = tmp_path / "base_path/build/first-app/somevendor/surprising"

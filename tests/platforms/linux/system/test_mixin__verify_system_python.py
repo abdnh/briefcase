@@ -69,3 +69,23 @@ def test_missing_python3(monkeypatch, create_command):
     )
     with pytest.raises(BriefcaseCommandError, match=expected_error):
         create_command.verify_system_python()
+
+
+def test_embed_python_skips_check(monkeypatch, create_command, first_app_config):
+    """If the app embeds Python, the system Python check is skipped entirely.
+
+    Even if `/usr/bin/python3` is missing, no error is raised.
+    """
+    # /usr/bin/python3 does not exist
+    missing_python3 = MagicMock()
+    missing_python3.exists.return_value = False
+    monkeypatch.setattr(system, "Path", MagicMock(return_value=missing_python3))
+
+    first_app_config.embed_python = True
+
+    # No exception is raised; the check is a no-op.
+    create_command.verify_system_python(first_app_config)
+
+    # Path was never queried for /usr/bin/python3 because the embedded Python
+    # path short-circuits the check.
+    missing_python3.exists.assert_not_called()

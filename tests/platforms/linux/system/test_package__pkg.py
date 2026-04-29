@@ -438,6 +438,25 @@ def test_pkg_package_extra_requirements(package_command, first_app_pkg, tmp_path
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Can't build PKGs on Windows")
+@pytest.mark.skipif(sys.platform == "win32", reason="Can't build pkgs on Windows")
+def test_pkg_package_embed_python(package_command, first_app_pkg, tmp_path):
+    """When `embed_python` is set, the python3 runtime dep is dropped from PKGBUILD."""
+    bundle_path = tmp_path / "base_path/build/first-app/somevendor/surprising"
+
+    # Mark the app as embedding Python
+    first_app_pkg.embed_python = True
+
+    package_command.package_app(first_app_pkg)
+
+    pkgbuild_path = bundle_path / "pkgbuild/PKGBUILD"
+    assert pkgbuild_path.exists()
+
+    contents = pkgbuild_path.read_text(encoding="utf-8")
+    # python3 is not in the depends list
+    assert "depends=('glibc>=2.99')" in contents
+    assert "'python3'" not in contents
+
+
 def test_pkg_package_failure(package_command, first_app_pkg, tmp_path):
     """If a packaging doesn't succeed, an error is raised."""
     bundle_path = tmp_path / "base_path/build/first-app/somevendor/surprising"

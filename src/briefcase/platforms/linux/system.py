@@ -48,6 +48,7 @@ class LinuxSystemAppConfig(FinalizedAppConfig):
     glibc_version: str
     python_version_tag: str
     packaging_format: str
+    embed_python: bool
 
 
 class LinuxSystemMixin(LinuxMixin):
@@ -260,9 +261,16 @@ class LinuxSystemMixin(LinuxMixin):
         app.glibc_version = self.target_glibc_version(app)
         self.console.verbose(f"Targeting glibc {app.glibc_version}")
 
+        # Resolve embed_python. This is read after merge_config so that
+        # vendor/codename overrides (e.g. enabling embedded PBS only for Debian)
+        # are honoured.
+        app.embed_python = bool(getattr(app, "embed_python", False))
+
         app.python_version_tag = self.app_python_version_tag(app)
 
         self.console.verbose(f"Targeting Python{app.python_version_tag}")
+        if app.embed_python:
+            self.console.verbose("Embedding a standalone Python interpreter")
 
         return LinuxSystemAppConfig(super().finalize_app_config(app, **kwargs))
 
@@ -503,12 +511,17 @@ class LinuxSystemDockerMixin(LinuxSystemMixin):
         return options, overrides
 
     def app_python_version_tag(self, app: AppConfig):
-        if self.use_docker:
-            # If we're running in Docker, we can't know the Python3 version
-            # before rolling out the template; so we fall back to "3". Later,
-            # once we have a container in which we can run Python, this will be
-            # updated to the actual Python version as part of the
-            # `verify_python` app check.
+        if self.use_docker and not getattr(app, "embed_python", False):
+            # If we're running in Docker against the container's distro Python,
+            # we can't know the Python3 version before rolling out the template;
+            # so we fall back to "3". Later, once we have a container in which
+            # we can run Python, this will be updated to the actual Python
+            # version as part of the `verify_python` app check.
+            #
+            # When embedding python-build-standalone, we always use the running
+            # Briefcase Python version (the user can pin a different version
+            # via `python_version` in pyproject.toml), regardless of whether
+            # Docker is in use.
             python_version_tag = "3"
         else:
             python_version_tag = super().app_python_version_tag(app)
@@ -648,8 +661,18 @@ Install Docker Engine and try again or run Briefcase on an Arch host system.
         As a side effect of verifying Python, the `python_version_tag` will be
         updated to reflect the *actual* python version, not just a generic "3".
 
+        When the app embeds a standalone Python interpreter, this check is a
+        no-op: the embedded interpreter is shipped with the app, so the
+        container's distro Python is irrelevant.
+
         :param app: The application being built
         """
+        if getattr(app, "embed_python", False):
+            # Nothing to verify; PBS is the source of truth for the Python
+            # version, and `python_version_tag` was already set from the
+            # running Briefcase interpreter in `finalize_app_config`.
+            return
+
         output = self.tools[app].app_context.check_output(
             [
                 f"python{app.python_version_tag}",
@@ -691,15 +714,25 @@ Install Docker Engine and try again or run Briefcase on an Arch host system.
 *************************************************************************
 """)
 
-    def verify_system_python(self):
+    def verify_system_python(self, app: LinuxSystemAppConfig | None = None):
         """Verify that the Python being used to run Briefcase is the default system
         python.
 
         Will raise an exception if the system Python isn't an obvious Python3, or the
         Briefcase Python isn't the same version as the system Python.
 
+        When the app embeds a standalone Python interpreter, this check is a
+        no-op: the host's `/usr/bin/python3` is irrelevant because the embedded
+        interpreter is shipped with the app.
+
         Requires that the app tools have been verified.
+
+        :param app: The application being built. May be ``None`` when the
+            check is invoked outside an app-specific context.
         """
+        if app is not None and getattr(app, "embed_python", False):
+            return
+
         system_python_bin = Path("/usr/bin/python3")
         if not system_python_bin.exists():
             raise BriefcaseCommandError(
@@ -757,7 +790,7 @@ Install Docker Engine and try again or run Briefcase on an Arch host system.
             # compatible with Briefcase, and that the required system packages
             # are installed.
             if verify_python:
-                self.verify_system_python()
+                self.verify_system_python(app)
                 self.verify_system_packages(app)
 
         # Establish Docker as app context before letting super set subprocess
@@ -787,6 +820,10 @@ class LinuxSystemCreateCommand(
 
         # Add the vendor base
         context["vendor_base"] = app.target_vendor_base
+
+        # Whether the app should embed a standalone Python interpreter
+        # rather than depend on the distro's default Python.
+        context["embed_python"] = bool(getattr(app, "embed_python", False))
 
         # Use the non-root user if Docker is not mapping usernames. Also use a non-root
         # user if we're on macOS; user mapping doesn't alter Docker operation, but some
@@ -941,6 +978,11 @@ no extension).
                     path.chmod(new_perms)
 
         with self.console.wait_bar("Stripping binary..."):
+            # Only the bootstrap binary is stripped; if the app embeds a
+            # standalone Python interpreter, the python-build-standalone
+            # tarball is already shipped pre-stripped (the
+            # `install_only_stripped` PBS variant), so its shared libraries
+            # must not be stripped here.
             self.tools.subprocess.check_output(["strip", self.binary_path(app)])
 
 
@@ -1117,10 +1159,19 @@ class LinuxSystemPackageCommand(LinuxSystemDockerMixin, PackageCommand):
             # so this will be the target-specific definition, if one exists.
             # libc6 is added because lintian complains without it, even though
             # it's a dependency of the thing we *do* care about - python.
+            # When the app embeds its own Python, we don't depend on a distro
+            # libpython at all -- glibc remains the only baseline runtime dep
+            # because the embedded python-build-standalone interpreter still
+            # links against the host's libc.
+            python_runtime_requires = (
+                []
+                if getattr(app, "embed_python", False)
+                else [f"libpython{app.python_version_tag}"]
+            )
             system_runtime_requires = ", ".join(
                 [
                     f"libc6 (>={app.glibc_version})",
-                    f"libpython{app.python_version_tag}",
+                    *python_runtime_requires,
                     *getattr(app, "system_runtime_requires", []),
                 ]
             )
@@ -1196,8 +1247,11 @@ class LinuxSystemPackageCommand(LinuxSystemDockerMixin, PackageCommand):
 
         # Add runtime package dependencies. App config has been finalized,
         # so this will be the target-specific definition, if one exists.
+        # When the app embeds its own Python, we don't depend on the distro's
+        # python3 package; the bundled python-build-standalone interpreter is
+        # used instead.
         system_runtime_requires = [
-            "python3",
+            *([] if getattr(app, "embed_python", False) else ["python3"]),
             *getattr(app, "system_runtime_requires", []),
         ]
 
@@ -1401,9 +1455,13 @@ no extension).
         with self.console.wait_bar("Write PKGBUILD file..."):
             # Add runtime package dependencies. App config has been finalized,
             # so this will be the target-specific definition, if one exists.
+            # When the app embeds its own Python, we don't depend on the
+            # distro's python3 package; the bundled python-build-standalone
+            # interpreter is used instead. glibc remains a runtime dep because
+            # PBS still links against the host libc.
             system_runtime_requires_list = [
                 f"glibc>={app.glibc_version}",
-                "python3",
+                *([] if getattr(app, "embed_python", False) else ["python3"]),
                 *getattr(app, "system_runtime_requires", []),
             ]
 

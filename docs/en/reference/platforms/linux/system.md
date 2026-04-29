@@ -72,6 +72,8 @@ As the app uses the system Python, system packages are highly dependent on the d
 
 The usage of the system Python also means that system packages are different from most other Briefcase-packaged apps. On other target platforms (macOS and Windows apps, Linux AppImage, etc), the version of Python used to run Briefcase will be the version of Python used by the bundled app. However, when building a system package, Briefcase will use the operating system's Python3 installation for system packages, regardless of the host Python version. This means you will need to perform additional platform testing to ensure that your app is compatible with that version of Python.
 
+If you would prefer to ship your own Python interpreter inside the system package -- decoupling the package from the distro's default Python -- set [`embed_python`][] to `true` in your app's configuration. See the description of that option below for the trade-offs.
+
 ## Icon format
 
 Deb packages uses `.png` format icons. An application must provide icons in the following sizes:
@@ -180,6 +182,25 @@ Any problems with installing or running your system package likely indicate an i
 ### `system_section`
 
 When an application is published as a `.deb` file, Debian requires that you specify a "section", describing a classification of the application area. The template will provide a default section of `utils`; if you want to override that default, you can specify a value for [`system_section`][]. For details on the allowed values for [`system_section`][], refer to the [Debian Policy Manual](https://www.debian.org/doc/debian-policy/ch-controlfields.html#s-f-section).
+
+### `embed_python`
+
+A boolean flag controlling whether Briefcase ships a standalone Python interpreter inside the produced system package, instead of depending on the distro's default `python3` package. Defaults to `false` (the historical behaviour).
+
+When `embed_python = true`:
+
+- A [python-build-standalone](https://github.com/astral-sh/python-build-standalone) interpreter is downloaded and installed into the package at `usr/lib[64]/<app_name>/python/`. The bootstrap binary at `usr/bin/<app_name>` is linked against, and points its `PYTHONHOME` at, this embedded interpreter.
+- The version of Python embedded in the package matches the version used to run Briefcase (or whatever `python_version` is set to in the app config), regardless of the distribution being targeted.
+- The `python3` / `libpython3.X` runtime dependency is dropped from the produced package's metadata. The package still depends on `glibc` because the embedded interpreter links against the host's libc.
+- Any host distribution providing a recent enough `glibc` can install and run the package, even if its default `python3` package is older or absent.
+
+There are trade-offs to consider before enabling this option:
+
+- The package is roughly 30 MB larger because it ships an entire Python interpreter and standard library.
+- Distribution maintainers may reject system packages that bundle their own Python interpreter, since such packages do not follow the distro's Python policies.
+- Security updates to the bundled Python interpreter are your responsibility -- the distro's Python security updates no longer apply.
+
+If you want a fully portable, distro-agnostic Linux artefact rather than a system package, the [`linux appimage`](appimage.md) and [`linux flatpak`](flatpak.md) formats also bundle a python-build-standalone interpreter and may be a better fit.
 
 ### `dockerfile_extra_content`
 

@@ -69,12 +69,14 @@ class LinuxMixin(_MixinBase):
     def support_package_url(self, support_revision):
         """The URL of the support package to use for apps of this type.
 
-        Linux builds that use a support package (AppImage, Flatpak) use Astral's (nee
-        indygreg's) Standalone Python to provide system packages. See
+        Linux builds that use a support package (AppImage, Flatpak, or a
+        ``linux system`` build with ``embed_python = true``) use Astral's
+        (nee indygreg's) Standalone Python to provide system packages. See
         `https://github.com/astral-sh/python-build-standalone` for details.
 
-        System packages don't use a support package; this is defined by the template, so
-        this method won't be invoked.
+        System packages built without ``embed_python`` don't use a support
+        package; this is defined by the template, so this method won't be
+        invoked.
         """
         python_download_arch = self.tools.host_arch
         # use a 32bit Python if using 32bit Python on 64bit hardware
